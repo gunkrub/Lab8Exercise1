@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import org.apache.http.HttpResponse;
@@ -47,6 +48,7 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
     String user;
     long lastUpdate = 0;
     Handler handler;
+    String m1,user1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +73,9 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
 
     @Override
     public void run() {
+        LoadMessageTask task = new LoadMessageTask();
+        task.execute();
+        handler.postDelayed(this, 30000);
     }
 
     @Override
@@ -105,7 +110,8 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_refresh) {
-
+            handler.removeCallbacks(this);
+            run();
             return true;
         }
 
@@ -140,11 +146,24 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
                     //Parsing JSON and displaying messages
 
                     //To append a new message:
-                    //Map<String, String> item = new HashMap<String, String>();
-                    //item.put("user", u);
-                    //item.put("message", m);
-                    //data.add(0, item);
+
+
                     JSONObject json = new JSONObject(buffer.toString());
+                    JSONArray jMsg = json.getJSONArray("msg");
+
+
+                    for(int i=0;i<jMsg.length();i++){
+                        JSONObject childJSON = jMsg.getJSONObject(i);
+                        user1 = childJSON.getString("user");
+                        m1 = childJSON.getString("message");
+
+                        Map<String, String> item = new HashMap<String, String>();
+                        item.put("user",user1);
+                        item.put("message", m1);
+                        data.add(0, item);
+                    }
+
+                    timestamp = json.getInt("timestamp");
 
                 }
             } catch (MalformedURLException e) {
@@ -154,7 +173,7 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
             } catch (JSONException e) {
                 Log.e("LoadMessageTask", "Invalid JSON");
             }
-            return false;
+            return true;
         }
 
         @Override
@@ -176,11 +195,35 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
 
         @Override
         protected Boolean doInBackground(String... params) {
-            String user = params[0];
-            String message = params[1];
+
             HttpClient h = new DefaultHttpClient();
             HttpPost p = new HttpPost("http://ict.siit.tu.ac.th/~cholwich/microblog/post.php");
+            EditText msg1 = (EditText)findViewById(R.id.etMessage);
+            String msg2 = msg1.getText().toString();
 
+            List<NameValuePair> values = new ArrayList<NameValuePair>();
+            values.add(new BasicNameValuePair("user", user));
+            values.add(new BasicNameValuePair("message", msg2));
+            try {
+                p.setEntity(new UrlEncodedFormEntity(values));
+                HttpResponse response = h.execute(p);
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(response.getEntity().getContent()));
+                while((line = reader.readLine()) != null) {
+                    buffer.append(line);
+                }
+
+
+
+
+                return true;
+            } catch (UnsupportedEncodingException e) {
+                Log.e("Error", "Invalid encoding");
+            } catch (ClientProtocolException e) {
+                Log.e("Error", "Error in posting a message");
+            } catch (IOException e) {
+                Log.e("Error", "I/O Exception");
+            }
 
 
             return false;
@@ -193,6 +236,9 @@ public class MessageActivity extends ActionBarActivity implements Runnable {
                         "Successfully post your status",
                         Toast.LENGTH_SHORT);
                 t.show();
+                EditText msg1 = (EditText)findViewById(R.id.etMessage);
+                msg1.setText("");
+                run();
             }
             else {
                 Toast t = Toast.makeText(MessageActivity.this.getApplicationContext(),
